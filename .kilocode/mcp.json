@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "git-commit-mcp": {
+      "command": "node",
+      "args": [
+        "build/index.js"
+      ],
+      "env": {},
+      "disabled": false,
+      "alwaysAllow": [
+        "check_git_status",
+        "auto_commit_code"
+      ]
+    }
+  }
+}

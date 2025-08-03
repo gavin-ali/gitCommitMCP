@@ -1,0 +1,9 @@
+这是一个测试文件，用于验证新的智能 Git Commit MCP 服务器功能。
+
+新的工作流程：
+1. analyze_git_changes - 分析代码变更
+2. 模型自行总结修改内容
+3. generate_commit_message - 生成标准化提交信息
+4. auto_commit_code - 执行提交
+
+测试时间：2024年12月
