@@ -164,7 +164,7 @@ server.tool(
   "generate_commit_message",
   {
     projectPath: z.string().optional().describe("项目路径，默认为当前目录"),
-    commitDescription: z.string().describe("基于代码变更分析生成的提交描述（5-10个字符）"),
+    commitDescription: z.string().describe("基于代码变更分析生成的提交描述"),
     commitType: z.string().optional().describe("提交类型，如 feat, fix, docs 等，默认为 feat")
   },
   async (args: { projectPath?: string; commitDescription: string; commitType?: string }) => {
@@ -180,37 +180,12 @@ server.tool(
       const day = String(now.getDate()).padStart(2, '0');
       const dateStr = `${month}${day}`;
 
-      // 智能总结描述，而不是简单截取
+      // 直接使用完整的描述，不进行截取
       let finalDescription = commitDescription;
-      if (finalDescription.length > 10) {
-        // 尝试智能总结关键词
-        const keywords = finalDescription.match(/[\u4e00-\u9fa5]+/g) || [];
-        if (keywords.length > 0) {
-          // 提取关键词并组合
-          const keyTerms = keywords.slice(0, 2).join('');
-          if (keyTerms.length >= 5 && keyTerms.length <= 10) {
-            finalDescription = keyTerms;
-          } else if (keyTerms.length > 10) {
-            finalDescription = keyTerms.substring(0, 10);
-          } else {
-            // 如果关键词太短，保留原始逻辑但尽量保持完整词汇
-            const words = finalDescription.split(/[，。、\s]+/);
-            let summary = '';
-            for (const word of words) {
-              if ((summary + word).length <= 10) {
-                summary += word;
-              } else {
-                break;
-              }
-            }
-            finalDescription = summary || finalDescription.substring(0, 10);
-          }
-        } else {
-          finalDescription = finalDescription.substring(0, 10);
-        }
-      }
-      if (finalDescription.length < 5) {
-        finalDescription = finalDescription.padEnd(5, '更新');
+      
+      // 只有当描述为空时才使用默认值
+      if (!finalDescription || finalDescription.trim().length === 0) {
+        finalDescription = '代码更新';
       }
 
       const commitMessage = `[${commitTypeMap[commitType] || 'UPD'}] ${finalDescription} - ${dateStr}`;
