@@ -151,9 +151,38 @@ server.tool("generate_commit_message", {
         const month = String(now.getMonth() + 1).padStart(2, '0');
         const day = String(now.getDate()).padStart(2, '0');
         const dateStr = `${month}${day}`;
+        // 智能总结描述，而不是简单截取
         let finalDescription = commitDescription;
         if (finalDescription.length > 10) {
-            finalDescription = finalDescription.substring(0, 10);
+            // 尝试智能总结关键词
+            const keywords = finalDescription.match(/[\u4e00-\u9fa5]+/g) || [];
+            if (keywords.length > 0) {
+                // 提取关键词并组合
+                const keyTerms = keywords.slice(0, 2).join('');
+                if (keyTerms.length >= 5 && keyTerms.length <= 10) {
+                    finalDescription = keyTerms;
+                }
+                else if (keyTerms.length > 10) {
+                    finalDescription = keyTerms.substring(0, 10);
+                }
+                else {
+                    // 如果关键词太短，保留原始逻辑但尽量保持完整词汇
+                    const words = finalDescription.split(/[，。、\s]+/);
+                    let summary = '';
+                    for (const word of words) {
+                        if ((summary + word).length <= 10) {
+                            summary += word;
+                        }
+                        else {
+                            break;
+                        }
+                    }
+                    finalDescription = summary || finalDescription.substring(0, 10);
+                }
+            }
+            else {
+                finalDescription = finalDescription.substring(0, 10);
+            }
         }
         if (finalDescription.length < 5) {
             finalDescription = finalDescription.padEnd(5, '更新');
