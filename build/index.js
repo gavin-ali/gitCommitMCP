@@ -43,7 +43,7 @@ server.tool("analyze_git_changes", {
         }
         const hasChanges = status.staged.length > 0 || status.modified.length > 0 ||
             status.created.length > 0 || status.deleted.length > 0 ||
-            status.renamed.length > 0;
+            status.renamed.length > 0 || status.not_added.length > 0;
         if (!hasChanges) {
             return {
                 content: [
@@ -64,7 +64,8 @@ server.tool("analyze_git_changes", {
             modified: status.modified,
             created: status.created,
             deleted: status.deleted,
-            renamed: status.renamed
+            renamed: status.renamed,
+            not_added: status.not_added
         };
         return {
             content: [
@@ -75,7 +76,7 @@ server.tool("analyze_git_changes", {
                         changedFiles: changedFiles,
                         diffContent: diffContent,
                         branch: status.current || 'main',
-                        summary: `检测到 ${status.staged.length + status.modified.length + status.created.length + status.deleted.length + status.renamed.length} 个文件有变更`
+                        summary: `检测到 ${status.staged.length + status.modified.length + status.created.length + status.deleted.length + status.renamed.length + status.not_added.length} 个文件有变更`
                     })
                 }
             ]
@@ -114,10 +115,11 @@ server.tool("check_git_status", {
                         created: status.created,
                         deleted: status.deleted,
                         renamed: status.renamed,
+                        not_added: status.not_added,
                         conflicted: status.conflicted,
                         hasChanges: status.staged.length > 0 || status.modified.length > 0 ||
                             status.created.length > 0 || status.deleted.length > 0 ||
-                            status.renamed.length > 0
+                            status.renamed.length > 0 || status.not_added.length > 0
                     })
                 }
             ]
@@ -206,7 +208,7 @@ server.tool("stage_git_changes", {
             };
         }
         const renamedFiles = status.renamed.map(r => typeof r === 'string' ? r : r.to);
-        const unstaged = [...status.modified, ...status.created, ...status.deleted, ...renamedFiles];
+        const unstaged = [...status.modified, ...status.created, ...status.deleted, ...renamedFiles, ...status.not_added];
         if (unstaged.length === 0) {
             return {
                 content: [
@@ -245,7 +247,7 @@ server.tool("stage_git_changes", {
                         message: `成功暂存 ${stagedFiles.length} 个文件`,
                         stagedFiles: stagedFiles,
                         totalStaged: newStatus.staged.length,
-                        remainingUnstaged: [...newStatus.modified, ...newStatus.created, ...newStatus.deleted, ...newStatus.renamed.map(r => typeof r === 'string' ? r : r.to)]
+                        remainingUnstaged: [...newStatus.modified, ...newStatus.created, ...newStatus.deleted, ...newStatus.renamed.map(r => typeof r === 'string' ? r : r.to), ...newStatus.not_added]
                     })
                 }
             ]
@@ -288,7 +290,7 @@ server.tool("auto_commit_code", {
         }
         const hasChanges = status.staged.length > 0 || status.modified.length > 0 ||
             status.created.length > 0 || status.deleted.length > 0 ||
-            status.renamed.length > 0;
+            status.renamed.length > 0 || status.not_added.length > 0;
         if (!hasChanges) {
             return {
                 content: [
@@ -300,8 +302,9 @@ server.tool("auto_commit_code", {
                 isError: true
             };
         }
+        // 如果有未暂存的更改，自动暂存所有更改
         if (status.modified.length > 0 || status.created.length > 0 ||
-            status.deleted.length > 0 || status.renamed.length > 0) {
+            status.deleted.length > 0 || status.renamed.length > 0 || status.not_added.length > 0) {
             await git.add('.');
         }
         let finalCommitMessage = commitMessage;
@@ -328,7 +331,8 @@ server.tool("auto_commit_code", {
                             modified: status.modified,
                             created: status.created,
                             deleted: status.deleted,
-                            renamed: status.renamed
+                            renamed: status.renamed,
+                            not_added: status.not_added
                         }
                     })
                 }
