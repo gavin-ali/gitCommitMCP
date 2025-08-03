@@ -1,16 +1,20 @@
 {
   "mcpServers": {
     "git-commit-mcp": {
+      "timeout": 60,
+      "type": "stdio",
       "command": "node",
       "args": [
-        "build/index.js"
+        "c:/Users/admin/Documents/gitCommitMCP/build/index.js"
       ],
       "env": {},
       "disabled": false,
       "alwaysAllow": [
+        "analyze_git_changes",
         "check_git_status",
-        "auto_commit_code",
-        "analyze_git_changes"
+        "generate_commit_message",
+        "stage_git_changes",
+        "auto_commit_code"
       ]
     }
   }

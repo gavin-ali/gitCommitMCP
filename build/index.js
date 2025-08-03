@@ -55,12 +55,10 @@ server.tool("analyze_git_changes", {
                 isError: true
             };
         }
-        // 获取详细的 diff 信息
         let diffContent = await git.diff(["--cached"]);
         if (!diffContent) {
             diffContent = await git.diff();
         }
-        // 获取文件状态信息
         const changedFiles = {
             staged: status.staged,
             modified: status.modified,
@@ -100,12 +98,10 @@ server.tool("check_git_status", {
 }, async (args) => {
     try {
         const { projectPath } = args;
-        // 如果指定了项目路径，则切换到该项目路径
         if (projectPath) {
             git.cwd(projectPath);
         }
         const status = await git.status();
-        // 切换回原始目录的逻辑应该在这里，但我们暂时不实现
         return {
             content: [
                 {
@@ -153,7 +149,6 @@ server.tool("generate_commit_message", {
         const month = String(now.getMonth() + 1).padStart(2, '0');
         const day = String(now.getDate()).padStart(2, '0');
         const dateStr = `${month}${day}`;
-        // 确保描述在5-10个字符之间
         let finalDescription = commitDescription;
         if (finalDescription.length > 10) {
             finalDescription = finalDescription.substring(0, 10);
@@ -183,6 +178,85 @@ server.tool("generate_commit_message", {
                 {
                     type: "text",
                     text: `生成提交信息时出错: ${error instanceof Error ? error.message : String(error)}`
+                }
+            ],
+            isError: true
+        };
+    }
+});
+server.tool("stage_git_changes", {
+    projectPath: z.string().optional().describe("项目路径，默认为当前目录"),
+    files: z.array(z.string()).optional().describe("要暂存的特定文件列表，如果不指定则暂存所有修改的文件")
+}, async (args) => {
+    try {
+        const { projectPath, files } = args;
+        if (projectPath) {
+            git.cwd(projectPath);
+        }
+        const status = await git.status();
+        if (!status) {
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: "当前目录不是有效的Git仓库"
+                    }
+                ],
+                isError: true
+            };
+        }
+        const renamedFiles = status.renamed.map(r => typeof r === 'string' ? r : r.to);
+        const unstaged = [...status.modified, ...status.created, ...status.deleted, ...renamedFiles];
+        if (unstaged.length === 0) {
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: JSON.stringify({
+                            success: true,
+                            message: "没有需要暂存的文件",
+                            stagedFiles: [],
+                            alreadyStaged: status.staged
+                        })
+                    }
+                ]
+            };
+        }
+        let stagedFiles = [];
+        if (files && files.length > 0) {
+            for (const file of files) {
+                if (unstaged.includes(file)) {
+                    await git.add(file);
+                    stagedFiles.push(file);
+                }
+            }
+        }
+        else {
+            await git.add('.');
+            stagedFiles = unstaged;
+        }
+        const newStatus = await git.status();
+        return {
+            content: [
+                {
+                    type: "text",
+                    text: JSON.stringify({
+                        success: true,
+                        message: `成功暂存 ${stagedFiles.length} 个文件`,
+                        stagedFiles: stagedFiles,
+                        totalStaged: newStatus.staged.length,
+                        remainingUnstaged: [...newStatus.modified, ...newStatus.created, ...newStatus.deleted, ...newStatus.renamed.map(r => typeof r === 'string' ? r : r.to)]
+                    })
+                }
+            ]
+        };
+    }
+    catch (error) {
+        return {
+            content: [
+                {
+                    type: "text",
+                    text: `暂存文件时出错: ${error instanceof Error ? error.message : String(error)}`
                 }
             ],
             isError: true
@@ -226,12 +300,10 @@ server.tool("auto_commit_code", {
                 isError: true
             };
         }
-        // 如果有未暂存的更改，自动暂存所有更改
         if (status.modified.length > 0 || status.created.length > 0 ||
             status.deleted.length > 0 || status.renamed.length > 0) {
             await git.add('.');
         }
-        // 使用传入的提交信息，如果有自定义信息则优先使用
         let finalCommitMessage = commitMessage;
         if (customMessage) {
             const now = new Date();
