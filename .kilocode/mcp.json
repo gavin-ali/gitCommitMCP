@@ -9,7 +9,8 @@
       "disabled": false,
       "alwaysAllow": [
         "check_git_status",
-        "auto_commit_code"
+        "auto_commit_code",
+        "analyze_git_changes"
       ]
     }
   }

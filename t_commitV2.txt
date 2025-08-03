@@ -1,0 +1,124 @@
+[1mdiff --git a/test_commitV2.txt b/test_commitV2.txt[m
+[1mindex f01098c..9bab4ae 100644[m
+[1m--- a/test_commitV2.txt[m
+[1m+++ b/test_commitV2.txt[m
+[36m@@ -1,9 +1,109 @@[m
+[31m-这是一个测试文件，用于验证新的智能 Git Commit MCP 服务器功能。[m
+[32m+[m[32mimport java.util.Arrays;[m
+ [m
+[31m-新的工作流程：[m
+[31m-1. analyze_git_changes - 分析代码变更[m
+[31m-2. 模型自行总结修改内容[m
+[31m-3. generate_commit_message - 生成标准化提交信息[m
+[31m-4. auto_commit_code - 执行提交[m
+[31m-[m
+[31m-测试时间：2024年12月[m
+\ No newline at end of file[m
+[32m+[m[32mpublic class QuickSort {[m
+[32m+[m[41m    [m
+[32m+[m[32m    /**[m
+[32m+[m[32m     * 快速排序主方法[m
+[32m+[m[32m     * @param arr 待排序数组[m
+[32m+[m[32m     * @param low 起始索引[m
+[32m+[m[32m     * @param high 结束索引[m
+[32m+[m[32m     */[m
+[32m+[m[32m    public static void quickSort(int[] arr, int low, int high) {[m
+[32m+[m[32m        if (low < high) {[m
+[32m+[m[32m            // 获取分区索引[m
+[32m+[m[32m            int pivotIndex = partition(arr, low, high);[m
+[32m+[m[41m            [m
+[32m+[m[32m            // 递归排序左半部分[m
+[32m+[m[32m            quickSort(arr, low, pivotIndex - 1);[m
+[32m+[m[41m            [m
+[32m+[m[32m            // 递归排序右半部分[m
+[32m+[m[32m            quickSort(arr, pivotIndex + 1, high);[m
+[32m+[m[32m        }[m
+[32m+[m[32m    }[m
+[32m+[m[41m    [m
+[32m+[m[32m    /**[m
+[32m+[m[32m     * 分区方法，将数组分为两部分[m
+[32m+[m[32m     * @param arr 数组[m
+[32m+[m[32m     * @param low 起始索引[m
+[32m+[m[32m     * @param high 结束索引[m
+[32m+[m[32m     * @return 分区索引[m
+[32m+[m[32m     */[m
+[32m+[m[32m    private static int partition(int[] arr, int low, int high) {[m
+[32m+[m[32m        // 选择最后一个元素作为基准[m
+[32m+[m[32m        int pivot = arr[high];[m
+[32m+[m[41m        [m
+[32m+[m[32m        // 较小元素的索引[m
+[32m+[m[32m        int i = low - 1;[m
+[32m+[m[41m        [m
+[32m+[m[32m        for (int j = low; j < high; j++) {[m
+[32m+[m[32m            // 如果当前元素小于或等于基准[m
+[32m+[m[32m            if (arr[j] <= pivot) {[m
+[32m+[m[32m                i++;[m
+[32m+[m[32m                swap(arr, i, j);[m
+[32m+[m[32m            }[m
+[32m+[m[32m        }[m
+[32m+[m[41m        [m
+[32m+[m[32m        // 将基准元素放到正确位置[m
+[32m+[m[32m        swap(arr, i + 1, high);[m
+[32m+[m[32m        return i + 1;[m
+[32m+[m[32m    }[m
+[32m+[m[41m    [m
+[32m+[m[32m    /**[m
+[32m+[m[32m     * 交换数组中两个元素的位置[m
+[32m+[m[32m     * @param arr 数组[m
+[32m+[m[32m     * @param i 第一个元素索引[m
+[32m+[m[32m     * @param j 第二个元素索引[m
+[32m+[m[32m     */[m
+[32m+[m[32m    private static void swap(int[] arr, int i, int j) {[m
+[32m+[m[32m        int temp = arr[i];[m
+[32m+[m[32m        arr[i] = arr[j];[m
+[32m+[m[32m        arr[j] = temp;[m
+[32m+[m[32m    }[m
+[32m+[m[41m    [m
+[32m+[m[32m    /**[m
+[32m+[m[32m     * 打印数组[m
+[32m+[m[32m     * @param arr 数组[m
+[32m+[m[32m     */[m
+[32m+[m[32m    public static void printArray(int[] arr) {[m
+[32m+[m[32m        System.out.println(Arrays.toString(arr));[m
+[32m+[m[32m    }[m
+[32m+[m[41m    [m
+[32m+[m[32m    /**[m
+[32m+[m[32m     * 主方法，测试快速排序[m
+[32m+[m[32m     */[m
+[32m+[m[32m    public static void main(String[] args) {[m
+[32m+[m[32m        int[] arr = {64, 34, 25, 12, 22, 11, 90, 88, 76, 50, 42};[m
+[32m+[m[41m        [m
+[32m+[m[32m        System.out.println("原始数组:");[m
+[32m+[m[32m        printArray(arr);[m
+[32m+[m[41m        [m
+[32m+[m[32m        // 执行快速排序[m
+[32m+[m[32m        quickSort(arr, 0, arr.length - 1);[m
+[32m+[m[41m        [m
+[32m+[m[32m        System.out.println("排序后数组:");[m
+[32m+[m[32m        printArray(arr);[m
+[32m+[m[41m        [m
+[32m+[m[32m        // 性能测试[m
+[32m+[m[32m        System.out.println("\n=== 性能测试 ===");[m
+[32m+[m[32m        int[] largeArr = generateRandomArray(10000);[m
+[32m+[m[41m        [m
+[32m+[m[32m        long startTime = System.currentTimeMillis();[m
+[32m+[m[32m        quickSort(largeArr, 0, largeArr.length - 1);[m
+[32m+[m[32m        long endTime = System.currentTimeMillis();[m
+[32m+[m[41m        [m
+[32m+[m[32m        System.out.println("排序10000个元素耗时: " + (endTime - startTime) + "毫秒");[m
+[32m+[m[32m    }[m
+[32m+[m[41m    [m
+[32m+[m[32m    /**[m
+[32m+[m[32m     * 生成随机数组用于测试[m
+[32m+[m[32m     * @param size 数组大小[m
+[32m+[m[32m     * @return 随机数组[m
+[32m+[m[32m     */[m
+[32m+[m[32m    private static int[] generateRandomArray(int size) {[m
+[32m+[m[32m        int[] arr = new int[size];[m
+[32m+[m[32m        for (int i = 0; i < size; i++) {[m
+[32m+[m[32m            arr[i] = (int) (Math.random() * 1000);[m
+[32m+[m[32m        }[m
+[32m+[m[32m        return arr;[m
+[32m+[m[32m    }[m
+[32m+[m[32m}[m
+\ No newline at end of file[m
