@@ -1,0 +1,21 @@
+{
+  "mcpServers": {
+   "git-commit-mcp": {
+      "disabled": false,
+      "timeout": 60,
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "git-commit-mcp"
+      ],
+      "env": {},
+      "alwaysAllow": [
+       "analyze_git_changes",
+        "check_git_status",
+        "generate_commit_message",
+        "stage_git_changes",
+        "auto_commit_code"
+      ]
+    }
+  }
+}

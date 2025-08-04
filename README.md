@@ -12,18 +12,32 @@
 
 ## 安装
 
+### 本地安装
+
 ```bash
 npm install git-commit-mcp
+```
+
+### 全局安装
+
+```bash
+npm install -g git-commit-mcp
 ```
 
 ## 使用方法
 
 该工具作为MCP服务器运行，可以与支持MCP的AI助手集成使用。
 
-### 作为MCP服务器启动
+### 本地安装后启动
 
 ```bash
 npx git-commit-mcp
+```
+
+### 全局安装后启动
+
+```bash
+git-commit-mcp
 ```
 
 ### 可用工具

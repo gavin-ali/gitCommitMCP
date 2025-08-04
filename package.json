@@ -1,20 +1,32 @@
 {
   "name": "git-commit-mcp",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "MCP server for standardizing Git commit messages",
   "type": "module",
   "main": "build/index.js",
+  "bin": {
+    "git-commit-mcp": "./build/index.js"
+  },
   "scripts": {
     "build": "tsc && node -e \"require('fs').chmodSync('build/index.js', '755')\"",
-    "start": "node build/index.js"
+    "start": "node build/index.js",
+    "prepublishOnly": "npm run build"
   },
-  "keywords": ["mcp", "git", "commit", "standardization"],
-  "author": "1331321",
+  "files": [
+    "build/**/*"
+  ],
+  "keywords": [
+    "mcp",
+    "git",
+    "commit",
+    "standardization"
+  ],
+  "author": "pvwen",
   "license": "MIT",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.17.0",
-    "zod": "^3.22.0",
-    "simple-git": "^3.22.0"
+    "simple-git": "^3.22.0",
+    "zod": "^3.22.0"
   },
   "devDependencies": {
     "@types/node": "^18.0.0",

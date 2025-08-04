@@ -2,11 +2,11 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import simpleGit from "simple-git";
+import { simpleGit } from "simple-git";
 
 const server = new McpServer({
   name: "git-commit-mcp",
-  version: "0.1.0"
+  version: "0.1.1"
 });
 
 const git = simpleGit();
@@ -246,7 +246,7 @@ server.tool(
         };
       }
       
-      const renamedFiles = status.renamed.map(r => typeof r === 'string' ? r : r.to);
+      const renamedFiles = status.renamed.map((r: any) => typeof r === 'string' ? r : r.to);
       const unstaged = [...status.modified, ...status.created, ...status.deleted, ...renamedFiles, ...status.not_added];
       
       if (unstaged.length === 0) {
@@ -290,7 +290,7 @@ server.tool(
               message: `成功暂存 ${stagedFiles.length} 个文件`,
               stagedFiles: stagedFiles,
               totalStaged: newStatus.staged.length,
-              remainingUnstaged: [...newStatus.modified, ...newStatus.created, ...newStatus.deleted, ...newStatus.renamed.map(r => typeof r === 'string' ? r : r.to), ...newStatus.not_added]
+              remainingUnstaged: [...newStatus.modified, ...newStatus.created, ...newStatus.deleted, ...newStatus.renamed.map((r: any) => typeof r === 'string' ? r : r.to), ...newStatus.not_added]
             })
           }
         ]
