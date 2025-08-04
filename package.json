@@ -9,7 +9,7 @@
     "start": "node build/index.js"
   },
   "keywords": ["mcp", "git", "commit", "standardization"],
-  "author": "Kilo Code",
+  "author": "1331321",
   "license": "MIT",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.17.0",
