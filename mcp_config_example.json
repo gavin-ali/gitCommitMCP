@@ -9,12 +9,10 @@
         "git-commit-mcp"
       ],
       "env": {},
-      "alwaysAllow": [
-       "analyze_git_changes",
-        "check_git_status",
+  "alwaysAllow": [
+        "analyze_git_changes",
         "generate_commit_message",
-        "stage_git_changes",
-        "auto_commit_code"
+        "stage_and_commit"
       ]
     }
   }

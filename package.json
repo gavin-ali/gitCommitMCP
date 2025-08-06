@@ -1,6 +1,6 @@
 {
   "name": "git-commit-mcp",
-  "version": "0.1.1",
+  "version": "0.1.7",
   "description": "MCP server for standardizing Git commit messages",
   "type": "module",
   "main": "build/index.js",
@@ -8,7 +8,8 @@
     "git-commit-mcp": "./build/index.js"
   },
   "scripts": {
-    "build": "tsc && node -e \"require('fs').chmodSync('build/index.js', '755')\"",
+    "build": "tsc",
+    "postbuild": "node -e \"import('fs').then(fs => fs.chmodSync('build/index.js', '755'))\"",
     "start": "node build/index.js",
     "prepublishOnly": "npm run build"
   },
@@ -23,6 +24,14 @@
   ],
   "author": "pvwen",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/pvwen/git-commit-mcp.git"
+  },
+  "homepage": "https://github.com/pvwen/git-commit-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/pvwen/git-commit-mcp/issues"
+  },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.17.0",
     "simple-git": "^3.22.0",
