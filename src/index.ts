@@ -6,7 +6,7 @@ import { simpleGit } from "simple-git";
 
 const server = new McpServer({
   name: "git-commit-mcp",
-  version: "0.1.8"
+  version: "0.1.9"
 });
 
 const git = simpleGit();
@@ -89,19 +89,57 @@ server.tool(
         }
       }
 
-      // 获取最近10次提交记录，分析风格
+      // 获取最近10次提交记录，优先获取当前用户的提交，如果没有则获取整个项目的
       let commitStyleAnalysis = {
         avgLength: 20,
         preferredTypes: ['feat'],
         commonPatterns: [],
         hasPrefix: false,
         prefixStyle: '',
-        descriptionStyle: 'simple'
+        descriptionStyle: 'simple',
+        userCommitsFound: false,
+        totalCommitsAnalyzed: 0
       };
 
       try {
-        const commits = await git.log({ n: 10 });
-        const commitMessages = commits.all.map((commit: any) => commit.message);
+        // 首先获取当前Git用户信息
+        let currentUser = '';
+        try {
+          const userConfig = await git.getConfig('user.name');
+          currentUser = userConfig || '';
+        } catch (error) {
+          console.warn('无法获取当前用户信息:', error);
+        }
+
+        let commits;
+        let commitMessages: string[] = [];
+
+        // 如果有当前用户信息，优先获取该用户的提交
+        if (currentUser) {
+          try {
+            commits = await git.log({ n: 50, author: currentUser }); // 获取更多记录以确保有足够的用户提交
+            const userCommits = commits.all.slice(0, 10); // 取最近10次
+            if (userCommits.length > 0) {
+              commitMessages = userCommits.map((commit: any) => commit.message);
+              commitStyleAnalysis.userCommitsFound = true;
+              commitStyleAnalysis.totalCommitsAnalyzed = userCommits.length;
+            }
+          } catch (error) {
+            console.warn('获取用户提交记录失败:', error);
+          }
+        }
+
+        // 如果没有找到当前用户的提交，则获取整个项目的提交记录
+        if (commitMessages.length === 0) {
+          try {
+            commits = await git.log({ n: 10 });
+            commitMessages = commits.all.map((commit: any) => commit.message);
+            commitStyleAnalysis.userCommitsFound = false;
+            commitStyleAnalysis.totalCommitsAnalyzed = commitMessages.length;
+          } catch (error) {
+            console.warn('获取项目提交记录失败:', error);
+          }
+        }
         
         if (commitMessages.length > 0) {
           // 分析平均长度
@@ -216,18 +254,56 @@ server.tool(
         git.cwd(projectPath);
       }
 
-      // 获取最近10次提交记录，基于提交风格调整生成的提交信息
+      // 获取最近10次提交记录，优先获取当前用户的提交，如果没有则获取整个项目的
       let commitStyleAnalysis = {
         avgLength: 20,
         preferredTypes: ['feat'],
         hasPrefix: false,
         prefixStyle: '',
-        descriptionStyle: 'simple'
+        descriptionStyle: 'simple',
+        userCommitsFound: false,
+        totalCommitsAnalyzed: 0
       };
 
       try {
-        const commits = await git.log({ n: 10 });
-        const commitMessages = commits.all.map((commit: any) => commit.message);
+        // 首先获取当前Git用户信息
+        let currentUser = '';
+        try {
+          const userConfig = await git.getConfig('user.name');
+          currentUser = userConfig || '';
+        } catch (error) {
+          console.warn('无法获取当前用户信息:', error);
+        }
+
+        let commits;
+        let commitMessages: string[] = [];
+
+        // 如果有当前用户信息，优先获取该用户的提交
+        if (currentUser) {
+          try {
+            commits = await git.log({ n: 50, author: currentUser }); // 获取更多记录以确保有足够的用户提交
+            const userCommits = commits.all.slice(0, 10); // 取最近10次
+            if (userCommits.length > 0) {
+              commitMessages = userCommits.map((commit: any) => commit.message);
+              commitStyleAnalysis.userCommitsFound = true;
+              commitStyleAnalysis.totalCommitsAnalyzed = userCommits.length;
+            }
+          } catch (error) {
+            console.warn('获取用户提交记录失败:', error);
+          }
+        }
+
+        // 如果没有找到当前用户的提交，则获取整个项目的提交记录
+        if (commitMessages.length === 0) {
+          try {
+            commits = await git.log({ n: 10 });
+            commitMessages = commits.all.map((commit: any) => commit.message);
+            commitStyleAnalysis.userCommitsFound = false;
+            commitStyleAnalysis.totalCommitsAnalyzed = commitMessages.length;
+          } catch (error) {
+            console.warn('获取项目提交记录失败:', error);
+          }
+        }
         
         if (commitMessages.length > 0) {
           // 分析平均长度
