@@ -6,7 +6,7 @@ import { simpleGit } from "simple-git";
 
 const server = new McpServer({
   name: "git-commit-mcp",
-  version: "0.1.10"
+  version: "0.1.11"
 });
 
 const git = simpleGit();
@@ -361,39 +361,9 @@ server.tool(
         finalDescription = '代码更新';
       }
 
-      // 分析代码变更来决定前缀格式
-      let shouldUsePrefix = false;
-      let suggestedPrefix = '';
-      
-      // 通过分析当前变更的文件类型来决定前缀格式
-      try {
-        const status = await git.status();
-        const changedFiles = [...status.staged, ...status.modified, ...status.created];
-        
-        // 分析文件类型来决定是否使用前缀
-        const hasCodeFiles = changedFiles.some(file => 
-          file.endsWith('.ts') || file.endsWith('.js') || file.endsWith('.tsx') || file.endsWith('.jsx')
-        );
-        const hasConfigFiles = changedFiles.some(file => 
-          file.includes('package.json') || file.includes('tsconfig.json') || file.includes('.config.')
-        );
-        const hasDocFiles = changedFiles.some(file => 
-          file.endsWith('.md') || file.endsWith('.txt') || file.includes('README')
-        );
-        
-        // 根据文件类型决定前缀格式
-        if (hasCodeFiles || hasConfigFiles) {
-          shouldUsePrefix = true;
-          suggestedPrefix = commitTypeMap[commitType] || 'UPD';
-        } else if (hasDocFiles) {
-          shouldUsePrefix = true;
-          suggestedPrefix = 'DOCS';
-        }
-      } catch (error) {
-        // 如果无法分析文件，回退到用户习惯
-        shouldUsePrefix = commitStyleAnalysis.hasPrefix;
-        suggestedPrefix = commitTypeMap[commitType] || 'UPD';
-      }
+      // 使用用户历史习惯决定是否使用前缀格式
+      const shouldUsePrefix = commitStyleAnalysis.hasPrefix;
+      const suggestedPrefix = commitTypeMap[commitType] || 'UPD';
 
       // 生成带有长度建议的提交信息
       let styleGuidance = '';
@@ -432,13 +402,8 @@ server.tool(
               description: finalDescription,
               commitStyleAnalysis: commitStyleAnalysis,
               styleGuidance: styleGuidance,
-              codeAnalysis: {
-                shouldUsePrefix: shouldUsePrefix,
-                suggestedPrefix: suggestedPrefix,
-                basedOnCode: true
-              },
               styleApplied: {
-                prefixFromCodeAnalysis: shouldUsePrefix,
+                prefixUsed: shouldUsePrefix,
                 lengthGuidanceProvided: styleGuidance !== '',
                 userStyleConsidered: true
               }
