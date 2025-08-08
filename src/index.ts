@@ -6,7 +6,7 @@ import { simpleGit } from "simple-git";
 
 const server = new McpServer({
   name: "git-commit-mcp",
-  version: "0.1.7"
+  version: "0.1.8"
 });
 
 const git = simpleGit();
@@ -35,13 +35,13 @@ server.tool(
   async (args: { projectPath?: string }) => {
     try {
       const { projectPath } = args;
-      
+
       if (projectPath) {
         git.cwd(projectPath);
       }
-      
+
       const status = await git.status();
-      
+
       if (!status) {
         return {
           content: [
@@ -53,20 +53,102 @@ server.tool(
           isError: true
         };
       }
-      
-      const hasChanges = status.staged.length > 0 || status.modified.length > 0 || 
-                        status.created.length > 0 || status.deleted.length > 0 ||
-                        status.renamed.length > 0 || status.not_added.length > 0;
-      
-      // 获取变更内容
+
+      const hasChanges = status.staged.length > 0 || status.modified.length > 0 ||
+        status.created.length > 0 || status.deleted.length > 0 ||
+        status.renamed.length > 0 || status.not_added.length > 0;
+
+      // 获取变更内容，只分析已被版本控制的文件，过滤掉未版本控制的文件
       let diffContent = "";
       if (hasChanges) {
-        diffContent = await git.diff(["--cached"]);
-        if (!diffContent) {
-          diffContent = await git.diff();
+        // 处理 renamed 文件，确保每个元素都是字符串类型
+        const renamedFiles = status.renamed.map((renamed: any) => typeof renamed === 'string' ? renamed : renamed.to);
+
+        // 只包含已被版本控制的文件（排除 not_added 即未版本控制的文件）
+        const trackedChangedFiles = [
+          ...status.staged,
+          ...status.modified,
+          ...status.created,
+          ...status.deleted,
+          ...renamedFiles
+        ];
+
+        // 只对已版本控制的文件进行 diff 分析
+        if (trackedChangedFiles.length > 0) {
+          try {
+            // 获取已暂存和未暂存的变更
+            const stagedDiff = status.staged.length > 0 ? await git.diff(['--cached']) : '';
+            const unstagedDiff = trackedChangedFiles.filter(file => !status.staged.includes(file)).length > 0 
+              ? await git.diff() : '';
+            
+            diffContent = [stagedDiff, unstagedDiff].filter(Boolean).join('\n---\n');
+          } catch (error) {
+            console.warn('获取diff内容时出错:', error);
+            diffContent = `无法获取变更详情: ${error}`;
+          }
         }
       }
-      
+
+      // 获取最近10次提交记录，分析风格
+      let commitStyleAnalysis = {
+        avgLength: 20,
+        preferredTypes: ['feat'],
+        commonPatterns: [],
+        hasPrefix: false,
+        prefixStyle: '',
+        descriptionStyle: 'simple'
+      };
+
+      try {
+        const commits = await git.log({ n: 10 });
+        const commitMessages = commits.all.map((commit: any) => commit.message);
+        
+        if (commitMessages.length > 0) {
+          // 分析平均长度
+          commitStyleAnalysis.avgLength = Math.round(
+            commitMessages.reduce((acc: number, msg: string) => acc + msg.length, 0) / commitMessages.length
+          );
+
+          // 分析提交类型偏好
+          const typePattern = /^\[?(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert|update)\]?/i;
+          const types = commitMessages
+            .map(msg => {
+              const match = msg.match(typePattern);
+              return match ? match[1].toLowerCase() : null;
+            })
+            .filter(Boolean);
+          
+          if (types.length > 0) {
+            const typeCount = types.reduce((acc: any, type) => {
+              acc[type] = (acc[type] || 0) + 1;
+              return acc;
+            }, {});
+            commitStyleAnalysis.preferredTypes = Object.keys(typeCount)
+              .sort((a, b) => typeCount[b] - typeCount[a])
+              .slice(0, 3);
+          }
+
+          // 分析是否使用前缀格式
+          const hasPrefix = commitMessages.some(msg => /^\[.+\]/.test(msg));
+          commitStyleAnalysis.hasPrefix = hasPrefix;
+          
+          if (hasPrefix) {
+            const prefixMatch = commitMessages.find(msg => /^\[.+\]/.test(msg))?.match(/^\[(.+?)\]/);
+            commitStyleAnalysis.prefixStyle = prefixMatch ? prefixMatch[1] : '';
+          }
+
+          // 分析描述风格（简洁 vs 详细）
+          const avgWordsPerCommit = commitMessages.reduce((acc, msg) => {
+            const cleanMsg = msg.replace(/^\[.+?\]\s*/, ''); // 移除前缀
+            return acc + cleanMsg.split(/\s+/).length;
+          }, 0) / commitMessages.length;
+          
+          commitStyleAnalysis.descriptionStyle = avgWordsPerCommit > 5 ? 'detailed' : 'simple';
+        }
+      } catch (error) {
+        console.warn('分析提交风格时出错:', error);
+      }
+
       const changedFiles = {
         staged: status.staged,
         modified: status.modified,
@@ -75,7 +157,7 @@ server.tool(
         renamed: status.renamed,
         not_added: status.not_added
       };
-      
+
       // 基本状态信息
       const statusInfo = {
         isRepo: true,
@@ -90,11 +172,12 @@ server.tool(
         hasChanges: hasChanges,
         changedFiles: changedFiles,
         diffContent: diffContent,
-        summary: hasChanges ? 
-          `检测到 ${status.staged.length + status.modified.length + status.created.length + status.deleted.length + status.renamed.length + status.not_added.length} 个文件有变更` : 
-          "没有检测到需要提交的更改"
+        summary: hasChanges ?
+          `检测到 ${status.staged.length + status.modified.length + status.created.length + status.deleted.length + status.renamed.length + status.not_added.length} 个文件有变更` :
+          "没有检测到需要提交的更改",
+        commitStyleAnalysis: commitStyleAnalysis
       };
-      
+
       return {
         content: [
           {
@@ -128,36 +211,117 @@ server.tool(
   async (args: { projectPath?: string; commitDescription: string; commitType?: string }) => {
     try {
       const { projectPath, commitDescription, commitType = "feat" } = args;
-      
+
       if (projectPath) {
         git.cwd(projectPath);
       }
-      
-      const now = new Date();
-      const month = String(now.getMonth() + 1).padStart(2, '0');
-      const day = String(now.getDate()).padStart(2, '0');
-      const dateStr = `${month}${day}`;
 
-      // 提示模型生成5-10个字的简短描述
+      // 获取最近10次提交记录，基于提交风格调整生成的提交信息
+      let commitStyleAnalysis = {
+        avgLength: 20,
+        preferredTypes: ['feat'],
+        hasPrefix: false,
+        prefixStyle: '',
+        descriptionStyle: 'simple'
+      };
+
+      try {
+        const commits = await git.log({ n: 10 });
+        const commitMessages = commits.all.map((commit: any) => commit.message);
+        
+        if (commitMessages.length > 0) {
+          // 分析平均长度
+          commitStyleAnalysis.avgLength = Math.round(
+            commitMessages.reduce((acc: number, msg: string) => acc + msg.length, 0) / commitMessages.length
+          );
+
+          // 分析提交类型偏好
+          const typePattern = /^\[?(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert|update)\]?/i;
+          const types = commitMessages
+            .map(msg => {
+              const match = msg.match(typePattern);
+              return match ? match[1].toLowerCase() : null;
+            })
+            .filter(Boolean);
+          
+          if (types.length > 0) {
+            const typeCount = types.reduce((acc: any, type) => {
+              acc[type] = (acc[type] || 0) + 1;
+              return acc;
+            }, {});
+            commitStyleAnalysis.preferredTypes = Object.keys(typeCount)
+              .sort((a, b) => typeCount[b] - typeCount[a])
+              .slice(0, 3);
+          }
+
+          // 分析是否使用前缀格式
+          const hasPrefix = commitMessages.some(msg => /^\[.+\]/.test(msg));
+          commitStyleAnalysis.hasPrefix = hasPrefix;
+          
+          if (hasPrefix) {
+            const prefixMatch = commitMessages.find(msg => /^\[.+\]/.test(msg))?.match(/^\[(.+?)\]/);
+            commitStyleAnalysis.prefixStyle = prefixMatch ? prefixMatch[1] : '';
+          }
+
+          // 分析描述风格（简洁 vs 详细）
+          const avgWordsPerCommit = commitMessages.reduce((acc, msg) => {
+            const cleanMsg = msg.replace(/^\[.+?\]\s*/, ''); // 移除前缀
+            return acc + cleanMsg.split(/\s+/).length;
+          }, 0) / commitMessages.length;
+          
+          commitStyleAnalysis.descriptionStyle = avgWordsPerCommit > 5 ? 'detailed' : 'simple';
+        }
+      } catch (error) {
+        console.warn('分析提交风格时出错:', error);
+      }
+
+      // 动态调整提交描述，参考历史提交风格
       let finalDescription = commitDescription;
-      
-      // 只有当描述为空时才使用默认值
       if (!finalDescription || finalDescription.trim().length === 0) {
         finalDescription = '代码更新';
       }
 
-      const commitMessage = `[${commitTypeMap[commitType] || 'UPD'}] ${finalDescription} - ${dateStr}`;
-      
+      // 根据用户风格调整描述长度
+      if (commitStyleAnalysis.descriptionStyle === 'simple' && finalDescription.length > commitStyleAnalysis.avgLength) {
+        // 如果用户习惯简洁风格，截取描述
+        finalDescription = finalDescription.substring(0, Math.max(10, commitStyleAnalysis.avgLength - 10)) + '...';
+      } else if (commitStyleAnalysis.descriptionStyle === 'detailed' && finalDescription.length < commitStyleAnalysis.avgLength * 0.7) {
+        // 如果用户习惯详细风格，可以保持或稍微扩展描述
+        finalDescription = finalDescription + ' (基于代码变更分析)';
+      }
+
+      // 根据用户习惯生成提交信息
+      let finalCommitMessage = '';
+      if (commitStyleAnalysis.hasPrefix) {
+        // 使用用户习惯的前缀格式
+        const typeToUse = commitStyleAnalysis.preferredTypes.includes(commitType) ? commitType : commitStyleAnalysis.preferredTypes[0];
+        finalCommitMessage = `[${commitTypeMap[typeToUse] || commitTypeMap[commitType] || 'UPD'}] ${finalDescription}`;
+      } else {
+        // 不使用前缀格式
+        finalCommitMessage = `${commitType}: ${finalDescription}`;
+      }
+
+      // 确保长度符合用户习惯
+      if (finalCommitMessage.length > commitStyleAnalysis.avgLength * 1.5) {
+        const maxLength = Math.max(20, commitStyleAnalysis.avgLength);
+        finalCommitMessage = finalCommitMessage.substring(0, maxLength - 3) + '...';
+      }
+
       return {
         content: [
           {
             type: "text",
             text: JSON.stringify({
               success: true,
-              commitMessage: commitMessage,
+              commitMessage: finalCommitMessage,
               commitType: commitType,
               description: finalDescription,
-              dateStr: dateStr
+              commitStyleAnalysis: commitStyleAnalysis,
+              styleApplied: {
+                lengthAdjusted: finalDescription !== commitDescription,
+                prefixUsed: commitStyleAnalysis.hasPrefix,
+                typePreferred: commitStyleAnalysis.preferredTypes.includes(commitType)
+              }
             })
           }
         ]
@@ -186,23 +350,23 @@ server.tool(
     customMessage: z.string().optional().describe("自定义提交信息（请控制在10-20字以内）"),
     autoCommit: z.boolean().optional().describe("是否在暂存后自动提交，默认为 false")
   },
-  async (args: { 
-    projectPath?: string; 
-    files?: string[]; 
-    commitMessage?: string; 
-    commitType?: string; 
+  async (args: {
+    projectPath?: string;
+    files?: string[];
+    commitMessage?: string;
+    commitType?: string;
     customMessage?: string;
     autoCommit?: boolean;
   }) => {
     try {
       const { projectPath, files, commitMessage, commitType, customMessage, autoCommit = false } = args;
-      
+
       if (projectPath) {
         git.cwd(projectPath);
       }
-      
+
       const status = await git.status();
-      
+
       if (!status) {
         return {
           content: [
@@ -214,10 +378,10 @@ server.tool(
           isError: true
         };
       }
-      
+
       const renamedFiles = status.renamed.map((r: any) => typeof r === 'string' ? r : r.to);
       const unstaged = [...status.modified, ...status.created, ...status.deleted, ...renamedFiles, ...status.not_added];
-      
+
       if (unstaged.length === 0 && status.staged.length === 0) {
         return {
           content: [
@@ -233,10 +397,10 @@ server.tool(
           ]
         };
       }
-      
+
       // 暂存文件
       let stagedFiles: string[] = [];
-      
+
       if (unstaged.length > 0) {
         if (files && files.length > 0) {
           for (const file of files) {
@@ -250,9 +414,9 @@ server.tool(
           stagedFiles = unstaged;
         }
       }
-      
+
       const newStatus = await git.status();
-      
+
       // 如果不需要提交，只返回暂存结果
       if (!autoCommit || (!commitMessage && !customMessage)) {
         return {
@@ -270,7 +434,7 @@ server.tool(
           ]
         };
       }
-      
+
       // 如果需要提交
       if (newStatus.staged.length === 0) {
         return {
@@ -283,7 +447,7 @@ server.tool(
           isError: true
         };
       }
-      
+
       // 生成提交信息
       let finalCommitMessage = commitMessage || "";
       if (customMessage) {
@@ -293,7 +457,7 @@ server.tool(
         const dateStr = `${month}${day}`;
         finalCommitMessage = `[${commitTypeMap[commitType || 'feat'] || 'UPD'}] ${customMessage} - ${dateStr}`;
       }
-      
+
       if (!finalCommitMessage) {
         return {
           content: [
@@ -305,10 +469,10 @@ server.tool(
           isError: true
         };
       }
-      
+
       // 执行提交
       const commitResult = await git.commit(finalCommitMessage);
-      
+
       return {
         content: [
           {
