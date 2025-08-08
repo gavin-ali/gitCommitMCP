@@ -6,7 +6,7 @@ import { simpleGit } from "simple-git";
 
 const server = new McpServer({
   name: "git-commit-mcp",
-  version: "0.1.11"
+  version: "0.1.14"
 });
 
 const git = simpleGit();
@@ -25,6 +25,131 @@ const commitTypeMap: { [key: string]: string } = {
   "revert": "REVERT", // 回滚：撤销之前的提交
   "update": "UPDATE" // 更新：更新现有功能或依赖
 };
+
+// 公共方法：分析历史提交风格
+async function analyzeCommitStyle(projectPath?: string) {
+  const gitInstance = projectPath ? simpleGit(projectPath) : git;
+  
+  let commitStyleAnalysis = {
+    avgLength: 20,
+    preferredTypes: ['feat'],
+    commonPatterns: [],
+    hasPrefix: false,
+    prefixStyle: '',
+    descriptionStyle: 'simple',
+    userCommitsFound: false,
+    totalCommitsAnalyzed: 0
+  };
+
+  try {
+    // 获取当前Git用户信息
+    let currentUser = '';
+    try {
+      const userConfig = await gitInstance.getConfig('user.name');
+      currentUser = (userConfig && typeof userConfig === 'string') ? userConfig : '';
+    } catch (error) {
+      console.warn('无法获取当前用户信息:', error);
+    }
+
+    let commits;
+    let commitMessages: string[] = [];
+
+    // 优先获取当前用户的提交记录
+    if (currentUser) {
+      try {
+        commits = await gitInstance.log({ n: 50, author: currentUser });
+        const userCommits = commits.all.slice(0, 10);
+        if (userCommits.length > 0) {
+          commitMessages = userCommits.map((commit: any) => commit.message);
+          commitStyleAnalysis.userCommitsFound = true;
+          commitStyleAnalysis.totalCommitsAnalyzed = userCommits.length;
+        }
+      } catch (error) {
+        console.warn('获取用户提交记录失败:', error);
+      }
+    }
+
+    // 如果没有找到当前用户的提交，则获取整个项目的提交记录
+    if (commitMessages.length === 0) {
+      try {
+        commits = await gitInstance.log({ n: 10 });
+        commitMessages = commits.all.map((commit: any) => commit.message);
+        commitStyleAnalysis.userCommitsFound = false;
+        commitStyleAnalysis.totalCommitsAnalyzed = commitMessages.length;
+      } catch (error) {
+        console.warn('获取项目提交记录失败:', error);
+      }
+    }
+    
+    if (commitMessages.length > 0) {
+      // 分析平均长度
+      commitStyleAnalysis.avgLength = Math.round(
+        commitMessages.reduce((acc: number, msg: string) => acc + msg.length, 0) / commitMessages.length
+      );
+
+      // 分析提交类型偏好
+      const typePattern = /^\[?(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert|update)\]?/i;
+      const types = commitMessages
+        .map(msg => {
+          const match = msg.match(typePattern);
+          return match ? match[1].toLowerCase() : null;
+        })
+        .filter(Boolean);
+      
+      if (types.length > 0) {
+        const typeCount = types.reduce((acc: any, type) => {
+          if (type) {
+            acc[type] = (acc[type] || 0) + 1;
+          }
+          return acc;
+        }, {});
+        commitStyleAnalysis.preferredTypes = Object.keys(typeCount)
+          .sort((a, b) => typeCount[b] - typeCount[a])
+          .slice(0, 3);
+      }
+
+      // 分析是否使用前缀格式
+      const hasPrefix = commitMessages.some(msg => /^\[.+\]/.test(msg));
+      commitStyleAnalysis.hasPrefix = hasPrefix;
+      
+      if (hasPrefix) {
+        const prefixMatch = commitMessages.find(msg => /^\[.+\]/.test(msg))?.match(/^\[(.+?)\]/);
+        commitStyleAnalysis.prefixStyle = prefixMatch ? prefixMatch[1] : '';
+      }
+
+      // 分析描述风格（简洁 vs 详细）
+      const avgWordsPerCommit = commitMessages.reduce((acc, msg) => {
+        const cleanMsg = msg.replace(/^\[.+?\]\s*/, ''); // 移除前缀
+        return acc + cleanMsg.split(/\s+/).length;
+      }, 0) / commitMessages.length;
+      
+      commitStyleAnalysis.descriptionStyle = avgWordsPerCommit > 5 ? 'detailed' : 'simple';
+    }
+  } catch (error) {
+    console.warn('分析提交风格时出错:', error);
+  }
+
+  return commitStyleAnalysis;
+}
+
+// 公共方法：生成长度指导信息
+function generateLengthGuidance(currentMessage: string, commitStyleAnalysis: any): string {
+  const currentLength = currentMessage.length;
+  const targetLength = commitStyleAnalysis.avgLength;
+  const lengthDiff = currentLength - targetLength;
+  
+  if (commitStyleAnalysis.totalCommitsAnalyzed > 0) {
+    if (Math.abs(lengthDiff) <= 5) {
+      return `长度${currentLength}字符，符合历史风格${targetLength}字符`;
+    } else if (lengthDiff > 5) {
+      return `长度${currentLength}字符，比历史平均${targetLength}字符长${lengthDiff}字符`;
+    } else {
+      return `长度${currentLength}字符，比历史平均${targetLength}字符短${Math.abs(lengthDiff)}字符`;
+    }
+  } else {
+    return `当前长度${currentLength}字符`;
+  }
+}
 
 // 分析Git变更
 server.tool(
@@ -89,105 +214,8 @@ server.tool(
         }
       }
 
-      // 获取最近10次提交记录，优先获取当前用户的提交，如果没有则获取整个项目的
-      let commitStyleAnalysis = {
-        avgLength: 20,
-        preferredTypes: ['feat'],
-        commonPatterns: [],
-        hasPrefix: false,
-        prefixStyle: '',
-        descriptionStyle: 'simple',
-        userCommitsFound: false,
-        totalCommitsAnalyzed: 0
-      };
-
-      try {
-        // 首先获取当前Git用户信息
-        let currentUser = '';
-        try {
-          const userConfig = await git.getConfig('user.name');
-          currentUser = (userConfig && typeof userConfig === 'string') ? userConfig : '';
-        } catch (error) {
-          console.warn('无法获取当前用户信息:', error);
-        }
-
-        let commits;
-        let commitMessages: string[] = [];
-
-        // 如果有当前用户信息，优先获取该用户的提交
-        if (currentUser) {
-          try {
-            commits = await git.log({ n: 50, author: currentUser }); // 获取更多记录以确保有足够的用户提交
-            const userCommits = commits.all.slice(0, 10); // 取最近10次
-            if (userCommits.length > 0) {
-              commitMessages = userCommits.map((commit: any) => commit.message);
-              commitStyleAnalysis.userCommitsFound = true;
-              commitStyleAnalysis.totalCommitsAnalyzed = userCommits.length;
-            }
-          } catch (error) {
-            console.warn('获取用户提交记录失败:', error);
-          }
-        }
-
-        // 如果没有找到当前用户的提交，则获取整个项目的提交记录
-        if (commitMessages.length === 0) {
-          try {
-            commits = await git.log({ n: 10 });
-            commitMessages = commits.all.map((commit: any) => commit.message);
-            commitStyleAnalysis.userCommitsFound = false;
-            commitStyleAnalysis.totalCommitsAnalyzed = commitMessages.length;
-          } catch (error) {
-            console.warn('获取项目提交记录失败:', error);
-          }
-        }
-        
-        if (commitMessages.length > 0) {
-          // 分析平均长度
-          commitStyleAnalysis.avgLength = Math.round(
-            commitMessages.reduce((acc: number, msg: string) => acc + msg.length, 0) / commitMessages.length
-          );
-
-          // 分析提交类型偏好
-          const typePattern = /^\[?(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert|update)\]?/i;
-          const types = commitMessages
-            .map(msg => {
-              const match = msg.match(typePattern);
-              return match ? match[1].toLowerCase() : null;
-            })
-            .filter(Boolean);
-          
-          if (types.length > 0) {
-            const typeCount = types.reduce((acc: any, type) => {
-              if (type) {
-                acc[type] = (acc[type] || 0) + 1;
-              }
-              return acc;
-            }, {});
-            commitStyleAnalysis.preferredTypes = Object.keys(typeCount)
-              .sort((a, b) => typeCount[b] - typeCount[a])
-              .slice(0, 3);
-          }
-
-          // 分析是否使用前缀格式
-          const hasPrefix = commitMessages.some(msg => /^\[.+\]/.test(msg));
-          commitStyleAnalysis.hasPrefix = hasPrefix;
-          
-          if (hasPrefix) {
-            const prefixMatch = commitMessages.find(msg => /^\[.+\]/.test(msg))?.match(/^\[(.+?)\]/);
-            commitStyleAnalysis.prefixStyle = prefixMatch ? prefixMatch[1] : '';
-          }
-
-          // 分析描述风格（简洁 vs 详细）
-          const avgWordsPerCommit = commitMessages.reduce((acc, msg) => {
-            const cleanMsg = msg.replace(/^\[.+?\]\s*/, ''); // 移除前缀
-            return acc + cleanMsg.split(/\s+/).length;
-          }, 0) / commitMessages.length;
-          
-          commitStyleAnalysis.descriptionStyle = avgWordsPerCommit > 5 ? 'detailed' : 'simple';
-        }
-      } catch (error) {
-        console.warn('分析提交风格时出错:', error);
-      }
+      // 使用公共方法分析提交风格
+      const commitStyleAnalysis = await analyzeCommitStyle(projectPath);
 
       const changedFiles = {
         staged: status.staged,
@@ -245,7 +273,7 @@ server.tool(
   "generate_commit_message",
   {
     projectPath: z.string().optional().describe("项目路径，默认为当前目录"),
-    commitDescription: z.string().describe("基于代码变更分析生成的提交描述"),
+    commitDescription: z.string().describe("基于代码变更分析生成的提交描述(做到简明扼要)"),
     commitType: z.string().optional().describe("提交类型，可选值包括：feat(新功能)、fix(修复)、docs(文档)、style(样式)、refactor(重构)、perf(性能)、test(测试)、build(构建)、ci(持续集成)、chore(杂务)、revert(回滚)、update(更新)，默认为 feat")
   },
   async (args: { projectPath?: string; commitDescription: string; commitType?: string }) => {
@@ -256,104 +284,8 @@ server.tool(
         git.cwd(projectPath);
       }
 
-      // 获取最近10次提交记录，优先获取当前用户的提交，如果没有则获取整个项目的
-      let commitStyleAnalysis = {
-        avgLength: 20,
-        preferredTypes: ['feat'],
-        hasPrefix: false,
-        prefixStyle: '',
-        descriptionStyle: 'simple',
-        userCommitsFound: false,
-        totalCommitsAnalyzed: 0
-      };
-
-      try {
-        // 首先获取当前Git用户信息
-        let currentUser = '';
-        try {
-          const userConfig = await git.getConfig('user.name');
-          currentUser = (userConfig && typeof userConfig === 'string') ? userConfig : '';
-        } catch (error) {
-          console.warn('无法获取当前用户信息:', error);
-        }
-
-        let commits;
-        let commitMessages: string[] = [];
-
-        // 如果有当前用户信息，优先获取该用户的提交
-        if (currentUser) {
-          try {
-            commits = await git.log({ n: 50, author: currentUser }); // 获取更多记录以确保有足够的用户提交
-            const userCommits = commits.all.slice(0, 10); // 取最近10次
-            if (userCommits.length > 0) {
-              commitMessages = userCommits.map((commit: any) => commit.message);
-              commitStyleAnalysis.userCommitsFound = true;
-              commitStyleAnalysis.totalCommitsAnalyzed = userCommits.length;
-            }
-          } catch (error) {
-            console.warn('获取用户提交记录失败:', error);
-          }
-        }
-
-        // 如果没有找到当前用户的提交，则获取整个项目的提交记录
-        if (commitMessages.length === 0) {
-          try {
-            commits = await git.log({ n: 10 });
-            commitMessages = commits.all.map((commit: any) => commit.message);
-            commitStyleAnalysis.userCommitsFound = false;
-            commitStyleAnalysis.totalCommitsAnalyzed = commitMessages.length;
-          } catch (error) {
-            console.warn('获取项目提交记录失败:', error);
-          }
-        }
-        
-        if (commitMessages.length > 0) {
-          // 分析平均长度
-          commitStyleAnalysis.avgLength = Math.round(
-            commitMessages.reduce((acc: number, msg: string) => acc + msg.length, 0) / commitMessages.length
-          );
-
-          // 分析提交类型偏好
-          const typePattern = /^\[?(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert|update)\]?/i;
-          const types = commitMessages
-            .map(msg => {
-              const match = msg.match(typePattern);
-              return match ? match[1].toLowerCase() : null;
-            })
-            .filter(Boolean);
-          
-          if (types.length > 0) {
-            const typeCount = types.reduce((acc: any, type) => {
-              if (type) {
-                acc[type] = (acc[type] || 0) + 1;
-              }
-              return acc;
-            }, {});
-            commitStyleAnalysis.preferredTypes = Object.keys(typeCount)
-              .sort((a, b) => typeCount[b] - typeCount[a])
-              .slice(0, 3);
-          }
-
-          // 分析是否使用前缀格式
-          const hasPrefix = commitMessages.some(msg => /^\[.+\]/.test(msg));
-          commitStyleAnalysis.hasPrefix = hasPrefix;
-          
-          if (hasPrefix) {
-            const prefixMatch = commitMessages.find(msg => /^\[.+\]/.test(msg))?.match(/^\[(.+?)\]/);
-            commitStyleAnalysis.prefixStyle = prefixMatch ? prefixMatch[1] : '';
-          }
-
-          // 分析描述风格（简洁 vs 详细）
-          const avgWordsPerCommit = commitMessages.reduce((acc, msg) => {
-            const cleanMsg = msg.replace(/^\[.+?\]\s*/, ''); // 移除前缀
-            return acc + cleanMsg.split(/\s+/).length;
-          }, 0) / commitMessages.length;
-          
-          commitStyleAnalysis.descriptionStyle = avgWordsPerCommit > 5 ? 'detailed' : 'simple';
-        }
-      } catch (error) {
-        console.warn('分析提交风格时出错:', error);
-      }
+      // 使用公共方法分析提交风格
+      const commitStyleAnalysis = await analyzeCommitStyle(projectPath);
 
       // 动态调整提交描述，参考历史提交风格
       let finalDescription = commitDescription;
@@ -364,14 +296,6 @@ server.tool(
       // 使用用户历史习惯决定是否使用前缀格式
       const shouldUsePrefix = commitStyleAnalysis.hasPrefix;
       const suggestedPrefix = commitTypeMap[commitType] || 'UPD';
-
-      // 生成带有长度建议的提交信息
-      let styleGuidance = '';
-      if (commitStyleAnalysis.descriptionStyle === 'simple') {
-        styleGuidance = `（建议平均长度为${commitStyleAnalysis.avgLength}字符，保持简洁）`;
-      } else if (commitStyleAnalysis.descriptionStyle === 'detailed') {
-        styleGuidance = `（建议平均长度为${commitStyleAnalysis.avgLength}字符，可以详细描述）`;
-      }
 
       // 根据代码分析结果生成提交信息
       let finalCommitMessage = '';
@@ -390,6 +314,9 @@ server.tool(
       if (commitStyleAnalysis.hasPrefix || shouldUsePrefix) {
         finalCommitMessage += ` - ${dateStr}`;
       }
+
+      // 使用公共方法生成长度指导信息
+      const styleGuidance = `（${generateLengthGuidance(finalCommitMessage, commitStyleAnalysis)}）`;
 
       return {
         content: [
@@ -533,14 +460,32 @@ server.tool(
         };
       }
 
+      // 使用公共方法分析提交风格
+      const commitStyleAnalysis = await analyzeCommitStyle(projectPath);
+
       // 生成提交信息
       let finalCommitMessage = commitMessage || "";
+      let lengthGuidance = "";
+      
       if (customMessage) {
         const now = new Date();
         const month = String(now.getMonth() + 1).padStart(2, '0');
         const day = String(now.getDate()).padStart(2, '0');
         const dateStr = `${month}${day}`;
-        finalCommitMessage = `[${commitTypeMap[commitType || 'feat'] || 'UPD'}] ${customMessage} - ${dateStr}`;
+        
+        const suggestedPrefix = commitTypeMap[commitType || 'feat'] || 'UPD';
+        
+        if (commitStyleAnalysis.hasPrefix) {
+          finalCommitMessage = `[${suggestedPrefix}] ${customMessage} - ${dateStr}`;
+        } else {
+          finalCommitMessage = `${commitType || 'feat'}: ${customMessage}`;
+        }
+        
+        // 使用公共方法生成长度指导信息
+        lengthGuidance = generateLengthGuidance(finalCommitMessage, commitStyleAnalysis);
+      } else if (commitMessage) {
+        // 使用公共方法生成长度指导信息
+        lengthGuidance = generateLengthGuidance(commitMessage, commitStyleAnalysis);
       }
 
       if (!finalCommitMessage) {
@@ -568,6 +513,13 @@ server.tool(
               commitHash: commitResult.commit,
               summary: commitResult.summary,
               stagedFiles: stagedFiles,
+              lengthGuidance: lengthGuidance,
+              commitStyleAnalysis: {
+                avgLength: commitStyleAnalysis.avgLength,
+                hasPrefix: commitStyleAnalysis.hasPrefix,
+                userCommitsFound: commitStyleAnalysis.userCommitsFound,
+                totalCommitsAnalyzed: commitStyleAnalysis.totalCommitsAnalyzed
+              },
               changedFiles: {
                 staged: newStatus.staged,
                 modified: newStatus.modified,

@@ -1,85 +1,160 @@
 # Git Commit MCP
 
-这是一个基于MCP (Model Context Protocol)的Git提交消息标准化工具。该工具可以帮助您自动分析Git变更、生成标准化的提交信息，并执行Git提交操作。
+一个基于 Model Context Protocol (MCP) 的智能 Git 提交工具，能够自动分析代码变更并生成符合项目风格的提交信息。
 
-**[English Documentation](https://github.com/pvwen/git-commit-mcp/blob/main/README.en.md)**
+## 功能特性
 
-## 功能特点
+- 🔍 **智能代码变更分析** - 自动分析 Git 仓库的变更状态和差异内容
+- 📝 **智能提交信息生成** - 基于历史提交风格生成符合项目规范的提交信息
+- 🎯 **个性化风格适配** - 优先分析当前用户的提交历史，自动适配个人提交风格
+- 📏 **长度智能控制** - 根据历史提交长度提供参考建议，不强制截断
+- 🏷️ **多种提交格式支持** - 支持前缀格式 `[FEAT]` 和标准格式 `feat:` 的自动识别
+- ⚡ **一键暂存提交** - 支持文件暂存和自动提交的完整工作流
 
-- 分析Git仓库变更
-- 检查Git状态
-- 生成标准化的提交信息
-- 自动暂存文件变更
-- 执行Git提交
+## 安装使用
 
-## 安装
-
-### 本地安装
-
-```bash
-npm install git-commit-mcp
-```
-
-### 全局安装
-
-```bash
-npm install -g git-commit-mcp
-```
-
-## 使用方法
-
-该工具作为MCP服务器运行，可以与支持MCP的AI助手集成使用。
-
-### 本地安装后启动
+### 作为 MCP 服务器运行
 
 ```bash
 npx git-commit-mcp
 ```
 
-### 全局安装后启动
+### 在 Claude Desktop 中配置
 
-```bash
-git-commit-mcp
+在 Claude Desktop 的配置文件中添加：
+
+```json
+{
+  "mcpServers": {
+    "git-commit-mcp": {
+      "command": "npx",
+      "args": ["git-commit-mcp"]
+    }
+  }
+}
 ```
 
-### 可用工具
+## 工具说明
 
-1. `analyze_git_changes` - 分析Git变更并检查状态
-   - 参数：
-     - `projectPath`：项目路径，默认为当前目录
+### 1. analyze_git_changes
 
-2. `generate_commit_message` - 生成标准化的提交信息
-   - 参数：
-     - `projectPath`：项目路径，默认为当前目录
-     - `commitDescription`：提交描述（尽量控制在5-10字）
-     - `commitType`：提交类型（可选），如feat、fix等
+分析当前 Git 仓库的变更状态，包括：
+- 文件变更状态（已暂存、已修改、新增、删除等）
+- 代码差异内容
+- 历史提交风格分析
 
-3. `stage_and_commit` - 暂存文件变更并提交代码
-   - 参数：
-     - `projectPath`：项目路径，默认为当前目录
-     - `files`：要暂存的特定文件列表（可选）
-     - `commitMessage`：完整的提交信息（可选）
-     - `commitType`：提交类型（可选）
-     - `customMessage`：自定义提交信息（尽量控制在10-20字以内）
-     - `autoCommit`：是否在暂存后自动提交（可选），默认为false
+**参数：**
+- `projectPath` (可选): 项目路径，默认为当前目录
 
-## 提交类型映射
+**返回信息：**
+- 仓库状态和变更文件列表
+- 代码差异详情
+- 提交风格分析结果（平均长度、格式偏好等）
 
-工具支持以下提交类型，并将其映射为标准化的前缀：
+### 2. generate_commit_message
 
-- feat: FEAT (新功能：添加新特性或功能)
-- fix: FIX (修复：解决bug或问题)
-- docs: DOCS (文档：更新文档或注释)
-- style: STYLE (样式：代码格式调整，不影响功能)
-- refactor: REFACTOR (重构：代码重构，不新增功能也不修复bug)
-- perf: PERF (性能：性能优化相关更改)
-- test: TEST (测试：添加或修改测试用例)
-- build: BUILD (构建：影响构建系统或外部依赖的更改)
-- ci: CI (持续集成：CI配置文件和脚本的更改)
-- chore: CHORE (杂务：不修改源代码或测试的其他更改)
-- revert: REVERT (回滚：撤销之前的提交)
-- update: UPDATE (更新：更新现有功能或依赖)
+基于代码变更和历史风格生成智能提交信息。
+
+**参数：**
+- `projectPath` (可选): 项目路径，默认为当前目录
+- `commitDescription` (必需): 基于代码变更的提交描述
+- `commitType` (可选): 提交类型，支持 feat、fix、docs、style、refactor、perf、test、build、ci、chore、revert、update
+
+**智能特性：**
+- 自动识别用户偏好的提交格式（前缀格式 vs 标准格式）
+- 根据历史平均长度提供长度参考
+- 自动添加日期标识（如果历史中有此习惯）
+- 提供长度对比分析但不强制截断
+
+### 3. stage_and_commit
+
+执行文件暂存和提交操作的完整工作流。
+
+**参数：**
+- `projectPath` (可选): 项目路径，默认为当前目录
+- `files` (可选): 要暂存的特定文件列表，不指定则暂存所有修改文件
+- `commitMessage` (可选): 完整的提交信息
+- `commitType` (可选): 提交类型
+- `customMessage` (可选): 自定义提交信息
+- `autoCommit` (可选): 是否在暂存后自动提交，默认为 false
+
+**智能特性：**
+- 根据历史风格自动选择提交格式
+- 为所有提交信息提供长度分析
+- 支持灵活的文件暂存策略
+
+## 提交类型支持
+
+| 类型 | 前缀格式 | 说明 |
+|------|----------|------|
+| feat | FEAT | 新功能：添加新特性或功能 |
+| fix | FIX | 修复：解决bug或问题 |
+| docs | DOCS | 文档：更新文档或注释 |
+| style | STYLE | 样式：代码格式调整，不影响功能 |
+| refactor | REFACTOR | 重构：代码重构，不新增功能也不修复bug |
+| perf | PERF | 性能：性能优化相关更改 |
+| test | TEST | 测试：添加或修改测试用例 |
+| build | BUILD | 构建：影响构建系统或外部依赖的更改 |
+| ci | CI | 持续集成：CI配置文件和脚本的更改 |
+| chore | CHORE | 杂务：不修改源代码或测试的其他更改 |
+| revert | REVERT | 回滚：撤销之前的提交 |
+| update | UPDATE | 更新：更新现有功能或依赖 |
+
+## 智能风格分析
+
+工具会自动分析您的提交历史，包括：
+
+1. **用户偏好优先** - 优先分析当前用户的提交记录
+2. **长度分析** - 计算历史提交的平均长度作为参考
+3. **格式识别** - 自动识别是否使用前缀格式（如 `[FEAT]`）
+4. **类型偏好** - 分析最常用的提交类型
+5. **描述风格** - 识别简洁型还是详细型描述风格
+
+## 使用示例
+
+### 基本工作流
+
+1. **分析变更**
+```bash
+# 通过 MCP 调用
+analyze_git_changes()
+```
+
+2. **生成提交信息**
+```bash
+# 基于分析结果生成提交信息
+generate_commit_message({
+  "commitDescription": "添加用户登录功能",
+  "commitType": "feat"
+})
+```
+
+3. **暂存并提交**
+```bash
+# 暂存所有文件并提交
+stage_and_commit({
+  "customMessage": "添加用户登录功能",
+  "commitType": "feat",
+  "autoCommit": true
+})
+```
+
+## 技术特性
+
+- 🚀 **零配置** - 开箱即用，自动适配项目风格
+- 🧠 **智能分析** - 基于机器学习的提交风格识别
+- 🔄 **增量优化** - 随着使用不断优化提交建议
+- 📊 **详细反馈** - 提供完整的分析和建议信息
+- 🛡️ **安全可靠** - 不会强制修改或截断用户内容
+
+## 版本信息
+
+当前版本：0.1.14
 
 ## 许可证
 
-MIT
+MIT License
+
+## 贡献
+
+欢迎提交 Issue 和 Pull Request 来改进这个工具！
