@@ -72,7 +72,7 @@ async function analyzeCommitStyle(projectPath?: string) {
     // 如果没有找到当前用户的提交，则获取整个项目的提交记录
     if (commitMessages.length === 0) {
       try {
-        commits = await gitInstance.log({ n: 10 });
+        commits = await gitInstance.log({ n: 8 });
         commitMessages = commits.all.map((commit: any) => commit.message);
         commitStyleAnalysis.userCommitsFound = false;
         commitStyleAnalysis.totalCommitsAnalyzed = commitMessages.length;
