@@ -1,6 +1,6 @@
 {
   "name": "git-commit-mcp",
-  "version": "0.1.15",
+  "version": "0.1.16",
   "description": "MCP server for standardizing Git commit messages",
   "type": "module",
   "main": "build/index.js",
@@ -26,11 +26,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/pvwen/git-commit-mcp.git"
+    "url": "https://github.com/gavin-ali/gitCommitMCP.git"
   },
-  "homepage": "https://github.com/pvwen/git-commit-mcp#readme",
+  "homepage": "https://github.com/gavin-ali/gitCommitMCP#readme",
   "bugs": {
-    "url": "https://github.com/pvwen/git-commit-mcp/issues"
+    "url": "https://github.com/gavin-ali/gitCommitMCP/issues"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.17.0",

@@ -149,7 +149,7 @@ stage_and_commit({
 
 ## Version
 
-Current Version: 0.1.15
+Current Version: 0.1.16
 
 ## License
 

@@ -6,7 +6,7 @@ import { simpleGit } from "simple-git";
 
 const server = new McpServer({
   name: "git-commit-mcp",
-  version: "0.1.15"
+  version: "0.1.16"
 });
 
 const git = simpleGit();
