@@ -6,7 +6,7 @@ import { simpleGit } from "simple-git";
 
 const server = new McpServer({
   name: "git-commit-mcp",
-  version: "0.1.14"
+  version: "0.1.15"
 });
 
 const git = simpleGit();
@@ -273,7 +273,7 @@ server.tool(
   "generate_commit_message",
   {
     projectPath: z.string().optional().describe("项目路径，默认为当前目录"),
-    commitDescription: z.string().describe("基于代码变更分析生成的提交描述(做到简明扼要)"),
+    commitDescription: z.string().describe("基于代码变更分析生成的提交描述(精炼地描述代码变更原因、目的及方式))"),
     commitType: z.string().optional().describe("提交类型，可选值包括：feat(新功能)、fix(修复)、docs(文档)、style(样式)、refactor(重构)、perf(性能)、test(测试)、build(构建)、ci(持续集成)、chore(杂务)、revert(回滚)、update(更新)，默认为 feat")
   },
   async (args: { projectPath?: string; commitDescription: string; commitType?: string }) => {
