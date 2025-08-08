@@ -6,7 +6,7 @@ import { simpleGit } from "simple-git";
 
 const server = new McpServer({
   name: "git-commit-mcp",
-  version: "0.1.9"
+  version: "0.1.10"
 });
 
 const git = simpleGit();
@@ -106,7 +106,7 @@ server.tool(
         let currentUser = '';
         try {
           const userConfig = await git.getConfig('user.name');
-          currentUser = userConfig || '';
+          currentUser = (userConfig && typeof userConfig === 'string') ? userConfig : '';
         } catch (error) {
           console.warn('无法获取当前用户信息:', error);
         }
@@ -158,7 +158,9 @@ server.tool(
           
           if (types.length > 0) {
             const typeCount = types.reduce((acc: any, type) => {
-              acc[type] = (acc[type] || 0) + 1;
+              if (type) {
+                acc[type] = (acc[type] || 0) + 1;
+              }
               return acc;
             }, {});
             commitStyleAnalysis.preferredTypes = Object.keys(typeCount)
@@ -270,7 +272,7 @@ server.tool(
         let currentUser = '';
         try {
           const userConfig = await git.getConfig('user.name');
-          currentUser = userConfig || '';
+          currentUser = (userConfig && typeof userConfig === 'string') ? userConfig : '';
         } catch (error) {
           console.warn('无法获取当前用户信息:', error);
         }
@@ -322,7 +324,9 @@ server.tool(
           
           if (types.length > 0) {
             const typeCount = types.reduce((acc: any, type) => {
-              acc[type] = (acc[type] || 0) + 1;
+              if (type) {
+                acc[type] = (acc[type] || 0) + 1;
+              }
               return acc;
             }, {});
             commitStyleAnalysis.preferredTypes = Object.keys(typeCount)
@@ -357,30 +361,64 @@ server.tool(
         finalDescription = '代码更新';
       }
 
-      // 根据用户风格调整描述长度
-      if (commitStyleAnalysis.descriptionStyle === 'simple' && finalDescription.length > commitStyleAnalysis.avgLength) {
-        // 如果用户习惯简洁风格，截取描述
-        finalDescription = finalDescription.substring(0, Math.max(10, commitStyleAnalysis.avgLength - 10)) + '...';
-      } else if (commitStyleAnalysis.descriptionStyle === 'detailed' && finalDescription.length < commitStyleAnalysis.avgLength * 0.7) {
-        // 如果用户习惯详细风格，可以保持或稍微扩展描述
-        finalDescription = finalDescription + ' (基于代码变更分析)';
+      // 分析代码变更来决定前缀格式
+      let shouldUsePrefix = false;
+      let suggestedPrefix = '';
+      
+      // 通过分析当前变更的文件类型来决定前缀格式
+      try {
+        const status = await git.status();
+        const changedFiles = [...status.staged, ...status.modified, ...status.created];
+        
+        // 分析文件类型来决定是否使用前缀
+        const hasCodeFiles = changedFiles.some(file => 
+          file.endsWith('.ts') || file.endsWith('.js') || file.endsWith('.tsx') || file.endsWith('.jsx')
+        );
+        const hasConfigFiles = changedFiles.some(file => 
+          file.includes('package.json') || file.includes('tsconfig.json') || file.includes('.config.')
+        );
+        const hasDocFiles = changedFiles.some(file => 
+          file.endsWith('.md') || file.endsWith('.txt') || file.includes('README')
+        );
+        
+        // 根据文件类型决定前缀格式
+        if (hasCodeFiles || hasConfigFiles) {
+          shouldUsePrefix = true;
+          suggestedPrefix = commitTypeMap[commitType] || 'UPD';
+        } else if (hasDocFiles) {
+          shouldUsePrefix = true;
+          suggestedPrefix = 'DOCS';
+        }
+      } catch (error) {
+        // 如果无法分析文件，回退到用户习惯
+        shouldUsePrefix = commitStyleAnalysis.hasPrefix;
+        suggestedPrefix = commitTypeMap[commitType] || 'UPD';
       }
 
-      // 根据用户习惯生成提交信息
+      // 生成带有长度建议的提交信息
+      let styleGuidance = '';
+      if (commitStyleAnalysis.descriptionStyle === 'simple') {
+        styleGuidance = `（建议平均长度为${commitStyleAnalysis.avgLength}字符，保持简洁）`;
+      } else if (commitStyleAnalysis.descriptionStyle === 'detailed') {
+        styleGuidance = `（建议平均长度为${commitStyleAnalysis.avgLength}字符，可以详细描述）`;
+      }
+
+      // 根据代码分析结果生成提交信息
       let finalCommitMessage = '';
-      if (commitStyleAnalysis.hasPrefix) {
-        // 使用用户习惯的前缀格式
-        const typeToUse = commitStyleAnalysis.preferredTypes.includes(commitType) ? commitType : commitStyleAnalysis.preferredTypes[0];
-        finalCommitMessage = `[${commitTypeMap[typeToUse] || commitTypeMap[commitType] || 'UPD'}] ${finalDescription}`;
+      if (shouldUsePrefix) {
+        finalCommitMessage = `[${suggestedPrefix}] ${finalDescription}`;
       } else {
-        // 不使用前缀格式
         finalCommitMessage = `${commitType}: ${finalDescription}`;
       }
 
-      // 确保长度符合用户习惯
-      if (finalCommitMessage.length > commitStyleAnalysis.avgLength * 1.5) {
-        const maxLength = Math.max(20, commitStyleAnalysis.avgLength);
-        finalCommitMessage = finalCommitMessage.substring(0, maxLength - 3) + '...';
+      // 添加日期标识（保持用户习惯）
+      const now = new Date();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      const dateStr = `${month}${day}`;
+      
+      if (commitStyleAnalysis.hasPrefix || shouldUsePrefix) {
+        finalCommitMessage += ` - ${dateStr}`;
       }
 
       return {
@@ -393,10 +431,16 @@ server.tool(
               commitType: commitType,
               description: finalDescription,
               commitStyleAnalysis: commitStyleAnalysis,
+              styleGuidance: styleGuidance,
+              codeAnalysis: {
+                shouldUsePrefix: shouldUsePrefix,
+                suggestedPrefix: suggestedPrefix,
+                basedOnCode: true
+              },
               styleApplied: {
-                lengthAdjusted: finalDescription !== commitDescription,
-                prefixUsed: commitStyleAnalysis.hasPrefix,
-                typePreferred: commitStyleAnalysis.preferredTypes.includes(commitType)
+                prefixFromCodeAnalysis: shouldUsePrefix,
+                lengthGuidanceProvided: styleGuidance !== '',
+                userStyleConsidered: true
               }
             })
           }
